@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SmartQueue PH — Admin Panel</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+    darkMode: 'class',
+    theme: {
+        extend: {
+            colors: {
+                primary: '#137fec',
+                sidebar: '#0d1520',
+            },
+            fontFamily: { display: ['Manrope','sans-serif'] },
+        }
+    }
+}
+</script>
+<style>
+* { font-family: 'Manrope', sans-serif; }
+.material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+
+/* Sidebar collapse */
+#sidebar { width:260px; min-width:260px; transition:width .3s,min-width .3s; }
+#sidebar.collapsed { width:68px; min-width:68px; }
+#sidebar.collapsed .sidebar-label { display:none; }
+#sidebar.collapsed .nav-btn { justify-content:center; padding-left:0; padding-right:0; }
+
+/* Animations */
+@keyframes fadeUp {
+    from { opacity:0; transform:translateY(12px); }
+    to   { opacity:1; transform:translateY(0); }
+}
+.fade-up { animation: fadeUp .4s ease both; }
+.fade-up:nth-child(1){animation-delay:.05s}
+.fade-up:nth-child(2){animation-delay:.10s}
+.fade-up:nth-child(3){animation-delay:.15s}
+.fade-up:nth-child(4){animation-delay:.20s}
+
+@keyframes modalPop {
+    from { opacity:0; transform:scale(.9) translateY(16px); }
+    to   { opacity:1; transform:scale(1) translateY(0); }
+}
+.modal-box { animation: modalPop .25s cubic-bezier(.34,1.4,.64,1) both; }
+
+/* Badges */
+.badge { display:inline-flex;align-items:center;padding:2px 10px;border-radius:9999px;font-size:.68rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase; }
+.badge-waiting  { background:#dbeafe;color:#1d4ed8; }
+.badge-serving  { background:#dcfce7;color:#15803d; }
+.badge-done     { background:#f1f5f9;color:#64748b; }
+.badge-skipped  { background:#fef3c7;color:#b45309; }
+
+/* Toast */
+#toast {
+    position:fixed;bottom:1.5rem;right:1.5rem;z-index:999;
+    transition:opacity .3s,transform .3s;
+    opacity:0;pointer-events:none;transform:translateY(10px);
+}
+#toast.show { opacity:1;pointer-events:auto;transform:translateY(0); }
+
+/* Tab active */
+.tab-btn.active { background:#137fec;color:#fff;border-color:#137fec; }
+
+/* Toggle switch */
+.toggle-track { transition:background .2s; }
+.toggle-thumb { transition:transform .2s; }
+input:checked ~ .toggle-track { background:#137fec; }
+input:checked ~ .toggle-track .toggle-thumb { transform:translateX(20px); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-thumb { background:#334155; border-radius:4px; }
+
+/* Modal overlay */
+.modal-overlay { display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);align-items:center;justify-content:center; }
+.modal-overlay.open { display:flex; }
+
+/* Login overlay */
+#login-screen { position:fixed;inset:0;z-index:500;background:#0d1520;display:flex;align-items:center;justify-content:center; }
+
+/* Chart bar */
+.bar-wrap:hover .bar-val { opacity:1; }
+.bar-val { opacity:0;transition:opacity .2s; }
+
+/* Nav active */
+.nav-btn.active { background:rgba(19,127,236,.15);color:#137fec; }
+</style>
+</head>
+<body class="bg-[#0f1923] text-slate-100 flex h-screen overflow-hidden">
+
+<!-- ═══ LOGIN SCREEN ════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="bg-[#162130] border border-slate-700/50 rounded-2xl p-10 w-full max-w-sm shadow-2xl text-center">
+    <div class="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-primary/30">
+      <span class="material-symbols-outlined text-3xl text-white">admin_panel_settings</span>
+    </div>
+    <h1 class="text-2xl font-black text-white mb-1">Admin Panel</h1>
+    <p class="text-slate-500 text-sm mb-8">SmartQueue PH — Secure Access</p>
+    <div class="space-y-3 text-left mb-5">
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Username</label>
+        <input id="l-user" type="text" value="admin" placeholder="admin"
+          class="mt-1 w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"/>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Password</label>
+        <input id="l-pass" type="password" value="admin123" placeholder="••••••••"
+          class="mt-1 w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"/>
+      </div>
+    </div>
+    <p id="l-err" class="hidden text-red-400 text-xs mb-3">Invalid credentials. Try admin / admin123</p>
+    <button onclick="doLogin()" class="w-full py-3 bg-primary text-white font-extrabold rounded-xl shadow-md shadow-primary/30 hover:bg-primary/90 active:scale-[.98] transition-all">Sign In</button>
+    <p class="text-xs text-slate-600 mt-4">Demo: admin / admin123</p>
+  </div>
+</div>
+
+<!-- ═══ TOAST ════════════════════════════════════════════════ -->
+<div id="toast" class="px-5 py-3 bg-[#1e2d3d] border border-slate-700 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-3 max-w-xs">
+  <span class="material-symbols-outlined text-primary" id="toast-icon">check_circle</span>
+  <span id="toast-msg">Done!</span>
+</div>
+
+<!-- ═══ ADD/EDIT TICKET MODAL ════════════════════════════════ -->
+<div id="ticket-modal" class="modal-overlay">
+  <div class="modal-box bg-[#162130] border border-slate-700/50 rounded-2xl p-8 w-full max-w-md mx-4 shadow-2xl">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-lg font-bold text-white" id="modal-title">Add Walk-in Ticket</h2>
+      <button onclick="closeModal('ticket-modal')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700 transition-colors">
+        <span class="material-symbols-outlined text-xl">close</span>
+      </button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Full Name *</label>
+        <input id="m-name" type="text" placeholder="e.g. Maria Santos"
+          class="mt-1 w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"/>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Service *</label>
+        <select id="m-service"
+          class="mt-1 w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition">
+          <option>Advising</option>
+          <option>Enrollment</option>
+          <option>Payment</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Contact (optional)</label>
+        <input id="m-contact" type="text" placeholder="Email or phone"
+          class="mt-1 w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"/>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Concern (optional)</label>
+        <textarea id="m-concern" rows="2" placeholder="Brief description…"
+          class="mt-1 w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition resize-none"></textarea>
+      </div>
+    </div>
+    <p id="m-err" class="hidden text-red-400 text-xs mt-3">Please enter a name.</p>
+    <div class="flex gap-3 mt-6">
+      <button onclick="closeModal('ticket-modal')" class="flex-1 py-2.5 border border-slate-600 text-slate-400 rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors">Cancel</button>
+      <button onclick="submitTicket()" class="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors">Add Ticket</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONFIRM MODAL ════════════════════════════════════════ -->
+<div id="confirm-modal" class="modal-overlay">
+  <div class="modal-box bg-[#162130] border border-slate-700/50 rounded-2xl p-8 w-full max-w-sm mx-4 shadow-2xl text-center">
+    <div class="w-12 h-12 bg-red-500/15 rounded-full flex items-center justify-center mx-auto mb-4">
+      <span class="material-symbols-outlined text-red-400 text-2xl">warning</span>
+    </div>
+    <h2 class="text-lg font-bold text-white mb-2" id="confirm-title">Are you sure?</h2>
+    <p class="text-sm text-slate-400 mb-6" id="confirm-msg">This action cannot be undone.</p>
+    <div class="flex gap-3">
+      <button onclick="closeModal('confirm-modal')" class="flex-1 py-2.5 border border-slate-600 text-slate-400 rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors">Cancel</button>
+      <button id="confirm-ok" class="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-colors">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SIDEBAR ══════════════════════════════════════════════ -->
+<aside id="sidebar" class="bg-[#0d1520] border-r border-slate-800 flex flex-col h-screen overflow-hidden flex-shrink-0">
+  <!-- Logo -->
+  <div class="h-16 flex items-center gap-3 px-5 border-b border-slate-800 flex-shrink-0">
+    <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-primary/30">
+      <span class="material-symbols-outlined text-lg text-white">confirmation_number</span>
+    </div>
+    <div class="sidebar-label min-w-0">
+      <p class="text-sm font-black text-white leading-tight">SmartQueue PH</p>
+      <p class="text-[10px] text-slate-500 font-semibold">Admin Panel</p>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+    <button onclick="showPage('dashboard')" id="nav-dashboard"
+      class="nav-btn active w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+      <span class="material-symbols-outlined text-xl flex-shrink-0">dashboard</span>
+      <span class="sidebar-label">Dashboard</span>
+    </button>
+    <button onclick="showPage('queue')" id="nav-queue"
+      class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+      <span class="material-symbols-outlined text-xl flex-shrink-0">queue</span>
+      <span class="sidebar-label">Queue Manager</span>
+    </button>
+    <button onclick="showPage('analytics')" id="nav-analytics"
+      class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+      <span class="material-symbols-outlined text-xl flex-shrink-0">bar_chart</span>
+      <span class="sidebar-label">Analytics</span>
+    </button>
+    <button onclick="showPage('settings')" id="nav-settings"
+      class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+      <span class="material-symbols-outlined text-xl flex-shrink-0">settings</span>
+      <span class="sidebar-label">Settings</span>
+    </button>
+
+    <div class="sidebar-label pt-5 pb-1 px-1">
+      <p class="text-[10px] font-black text-slate-600 uppercase tracking-widest">Quick Filter</p>
+    </div>
+    <button onclick="showPage('queue');filterService('Advising')"
+      class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+      <span class="material-symbols-outlined text-xl flex-shrink-0" style="color:#137fec">school</span>
+      <span class="sidebar-label">Advising</span>
+    </button>
+    <button onclick="showPage('queue');filterService('Enrollment')"
+      class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+      <span class="material-symbols-outlined text-xl flex-shrink-0" style="color:#22c55e">assignment_ind</span>
+      <span class="sidebar-label">Enrollment</span>
+    </button>
+    <button onclick="showPage('queue');filterService('Payment')"
+      class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
+      <span class="material-symbols-outlined text-xl flex-shrink-0" style="color:#f59e0b">payments</span>
+      <span class="sidebar-label">Payment</span>
+    </button>
+  </nav>
+
+  <!-- User info -->
+  <div class="border-t border-slate-800 p-3 flex items-center gap-3 flex-shrink-0">
+    <div class="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
+      <span class="material-symbols-outlined text-primary text-base">person</span>
+    </div>
+    <div class="sidebar-label flex-1 min-w-0">
+      <p class="text-xs font-bold text-white truncate">Admin User</p>
+      <p class="text-[10px] text-slate-500">Superadmin</p>
+    </div>
+    <button onclick="doLogout()" class="sidebar-label w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-800 text-slate-500 hover:text-red-400 transition-colors">
+      <span class="material-symbols-outlined text-base">logout</span>
+    </button>
+  </div>
+</aside>
+
+<!-- ═══ MAIN CONTENT ══════════════════════════════════════════ -->
+<div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+  <!-- Top bar -->
+  <header class="h-16 bg-[#0d1520] border-b border-slate-800 flex items-center px-6 gap-4 flex-shrink-0">
+    <button onclick="toggleSidebar()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-white">
+      <span class="material-symbols-outlined text-xl">menu</span>
+    </button>
+    <div class="flex-1 min-w-0">
+      <h1 class="text-base font-extrabold text-white leading-tight" id="page-title">Dashboard</h1>
+      <p class="text-xs text-slate-500" id="page-sub">Overview of all queues</p>
+    </div>
+
+    <!-- Live badge -->
+    <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-green-900/20 border border-green-800/40 rounded-full text-xs font-bold text-green-400">
+      <span class="relative flex h-1.5 w-1.5">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+      </span>
+      Live
+    </div>
+
+    <div class="hidden sm:block text-sm font-bold text-slate-500" id="clock">--:--:--</div>
+
+    <button onclick="openAddTicketModal()" class="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
+      <span class="material-symbols-outlined text-base">add</span>
+      <span class="hidden sm:inline">Add Ticket</span>
+    </button>
+  </header>
+
+  <!-- Pages container -->
+  <div class="flex-1 overflow-y-auto">
+
+    <!-- ━━━━━ DASHBOARD PAGE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <div id="page-dashboard" class="p-6 space-y-6">
+
+      <!-- Stats row -->
+      <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="fade-up bg-[#162130] border border-slate-800 rounded-2xl p-5">
+          <div class="flex items-start justify-between mb-4">
+            <div class="w-10 h-10 bg-primary/15 rounded-xl flex items-center justify-center">
+              <span class="material-symbols-outlined text-primary text-xl">confirmation_number</span>
+            </div>
+            <span class="badge badge-waiting">Today</span>
+          </div>
+          <p class="text-3xl font-black text-white" id="s-total">0</p>
+          <p class="text-xs text-slate-500 font-semibold mt-1">Total Issued</p>
+        </div>
+        <div class="fade-up bg-[#162130] border border-slate-800 rounded-2xl p-5">
+          <div class="flex items-start justify-between mb-4">
+            <div class="w-10 h-10 bg-green-500/15 rounded-xl flex items-center justify-center">
+              <span class="material-symbols-outlined text-green-400 text-xl">check_circle</span>
+            </div>
+            <span class="badge badge-done">Done</span>
+          </div>
+          <p class="text-3xl font-black text-white" id="s-done">0</p>
+          <p class="text-xs text-slate-500 font-semibold mt-1">Served</p>
+        </div>
+        <div class="fade-up bg-[#162130] border border-slate-800 rounded-2xl p-5">
+          <div class="flex items-start justify-between mb-4">
+            <div class="w-10 h-10 bg-blue-500/15 rounded-xl flex items-center justify-center">
+              <span class="material-symbols-outlined text-blue-400 text-xl">hourglass_top</span>
+            </div>
+            <span class="badge badge-waiting">Active</span>
+          </div>
+          <p class="text-3xl font-black text-white" id="s-waiting">0</p>
+          <p class="text-xs text-slate-500 font-semibold mt-1">Waiting</p>
+        </div>
+        <div class="fade-up bg-[#162130] border border-slate-800 rounded-2xl p-5">
+          <div class="flex items-start justify-between mb-4">
+            <div class="w-10 h-10 bg-amber-500/15 rounded-xl flex items-center justify-center">
+              <span class="material-symbols-outlined text-amber-400 text-xl">schedule</span>
+            </div>
+            <span class="badge badge-skipped">Est.</span>
+          </div>
+          <p class="text-3xl font-black text-white"><span id="s-wait">0</span><span class="text-base text-slate-400 font-semibold">m</span></p>
+          <p class="text-xs text-slate-500 font-semibold mt-1">Avg Wait</p>
+        </div>
+      </div>
+
+      <!-- Now serving + breakdown -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        <!-- Now Serving Panel -->
+        <div class="bg-[#162130] border border-slate-800 rounded-2xl p-6 flex flex-col items-center text-center">
+          <p class="text-xs font-black uppercase tracking-widest text-slate-500 mb-4">Now Serving</p>
+          <div class="w-28 h-28 rounded-full border-4 border-primary/30 bg-primary/5 flex items-center justify-center mb-3 shadow-lg shadow-primary/10">
+            <p class="text-3xl font-black text-primary" id="d-now">—</p>
+          </div>
+          <p class="text-sm font-semibold text-slate-400 mb-5" id="d-now-svc">No active ticket</p>
+          <button onclick="callNext(null)" class="w-full py-2.5 bg-primary text-white font-extrabold text-sm rounded-xl hover:bg-primary/90 active:scale-[.98] transition-all shadow-md shadow-primary/20 mb-2">
+            Call Next →
+          </button>
+          <div class="w-full space-y-2 mt-1">
+            <button onclick="callNext('Advising')" class="w-full py-2 text-xs border border-slate-700 text-slate-400 font-bold rounded-xl hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-sm" style="color:#137fec">school</span> Next Advising
+            </button>
+            <button onclick="callNext('Enrollment')" class="w-full py-2 text-xs border border-slate-700 text-slate-400 font-bold rounded-xl hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-sm" style="color:#22c55e">assignment_ind</span> Next Enrollment
+            </button>
+            <button onclick="callNext('Payment')" class="w-full py-2 text-xs border border-slate-700 text-slate-400 font-bold rounded-xl hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-sm" style="color:#f59e0b">payments</span> Next Payment
+            </button>
+          </div>
+        </div>
+
+        <!-- Service Breakdown -->
+        <div class="lg:col-span-2 bg-[#162130] border border-slate-800 rounded-2xl p-6">
+          <p class="text-sm font-black text-white mb-5">Service Breakdown</p>
+          <div class="space-y-5" id="breakdown"></div>
+        </div>
+      </div>
+
+      <!-- Recent tickets table -->
+      <div class="bg-[#162130] border border-slate-800 rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+          <p class="text-sm font-black text-white">Recent Tickets</p>
+          <button onclick="showPage('queue')" class="text-xs text-primary font-bold hover:underline">View all →</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-800">
+              <th class="px-5 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Ticket</th>
+              <th class="px-5 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Name</th>
+              <th class="px-5 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Service</th>
+              <th class="px-5 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Status</th>
+              <th class="px-5 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Time</th>
+            </tr></thead>
+            <tbody id="recent-body" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ━━━━━ QUEUE MANAGER PAGE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <div id="page-queue" class="hidden p-6 space-y-5">
+      <!-- Filters + search -->
+      <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div class="flex gap-2 flex-wrap">
+          <button onclick="filterService('All')" id="tab-All" class="tab-btn active px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-white transition-all">All</button>
+          <button onclick="filterService('Advising')" id="tab-Advising" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white transition-all">Advising</button>
+          <button onclick="filterService('Enrollment')" id="tab-Enrollment" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white transition-all">Enrollment</button>
+          <button onclick="filterService('Payment')" id="tab-Payment" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white transition-all">Payment</button>
+        </div>
+        <div class="flex gap-3">
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-base pointer-events-none">search</span>
+            <input id="q-search" oninput="renderQueue()" type="text" placeholder="Search name or ticket…"
+              class="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition w-52"/>
+          </div>
+          <button onclick="openAddTicketModal()" class="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition-all">
+            <span class="material-symbols-outlined text-base">add</span> Add
+          </button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="bg-[#162130] border border-slate-800 rounded-2xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-800">
+              <th class="px-5 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Ticket</th>
+              <th class="px-5 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Name</th>
+              <th class="px-5 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Service</th>
+              <th class="px-5 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider hidden md:table-cell">Concern</th>
+              <th class="px-5 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Status</th>
+              <th class="px-5 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider hidden sm:table-cell">Issued</th>
+              <th class="px-5 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Actions</th>
+            </tr></thead>
+            <tbody id="queue-body" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+          <div id="queue-empty" class="hidden py-20 text-center">
+            <span class="material-symbols-outlined text-5xl text-slate-700 block mb-3">inbox</span>
+            <p class="text-slate-600 font-semibold text-sm">No tickets found.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ━━━━━ ANALYTICS PAGE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <div id="page-analytics" class="hidden p-6 space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <!-- Hourly bar chart -->
+        <div class="bg-[#162130] border border-slate-800 rounded-2xl p-6">
+          <p class="text-sm font-black text-white mb-5">Tickets by Hour (Today)</p>
+          <div class="flex items-end gap-1.5 h-36" id="hourly-chart"></div>
+          <div class="flex gap-1 mt-3 flex-wrap" id="hourly-labels"></div>
+        </div>
+        <!-- Distribution -->
+        <div class="bg-[#162130] border border-slate-800 rounded-2xl p-6">
+          <p class="text-sm font-black text-white mb-5">Distribution by Service</p>
+          <div id="dist-chart" class="space-y-4"></div>
+        </div>
+      </div>
+
+      <!-- Performance table -->
+      <div class="bg-[#162130] border border-slate-800 rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-800">
+          <p class="text-sm font-black text-white">Performance by Service</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-800">
+              <th class="px-5 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Service</th>
+              <th class="px-5 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Total</th>
+              <th class="px-5 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Served</th>
+              <th class="px-5 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Waiting</th>
+              <th class="px-5 py-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Completion</th>
+            </tr></thead>
+            <tbody id="analytics-body" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ━━━━━ SETTINGS PAGE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <div id="page-settings" class="hidden p-6 max-w-2xl space-y-5">
+      <div class="bg-[#162130] border border-slate-800 rounded-2xl p-6 space-y-5">
+        <p class="text-sm font-black text-white">Queue Configuration</p>
+        <div>
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Minutes Per Person (wait estimate)</label>
+          <input id="cfg-mpp" type="number" value="5" min="1" max="60"
+            class="mt-1 w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40 transition"/>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Max Capacity Per Service</label>
+          <input id="cfg-cap" type="number" value="50" min="5"
+            class="mt-1 w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40 transition"/>
+        </div>
+        <div class="flex items-center justify-between py-2 border-t border-slate-800">
+          <div>
+            <p class="text-sm font-bold text-white">Auto-advance Simulation</p>
+            <p class="text-xs text-slate-500 mt-0.5">Auto-call next ticket every 12s (demo mode)</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="cfg-auto" class="sr-only" checked onchange="toggleAuto()"/>
+            <div class="toggle-track w-11 h-6 bg-slate-700 rounded-full relative">
+              <div class="toggle-thumb absolute left-1 top-1 bg-white w-4 h-4 rounded-full shadow"></div>
+            </div>
+          </label>
+        </div>
+        <div class="flex items-center justify-between py-2 border-t border-slate-800">
+          <div>
+            <p class="text-sm font-bold text-white">Notification Toasts</p>
+            <p class="text-xs text-slate-500 mt-0.5">Show toast when tickets are called</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="cfg-notif" class="sr-only" checked/>
+            <div class="toggle-track w-11 h-6 bg-slate-700 rounded-full relative">
+              <div class="toggle-thumb absolute left-1 top-1 bg-white w-4 h-4 rounded-full shadow"></div>
+            </div>
+          </label>
+        </div>
+        <button onclick="saveSettings()" class="px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition-all">Save Settings</button>
+      </div>
+
+      <div class="bg-[#162130] border border-red-900/30 rounded-2xl p-6 space-y-4">
+        <p class="text-sm font-black text-red-400">Danger Zone</p>
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-bold text-white">Clear All Queues</p>
+            <p class="text-xs text-slate-500 mt-0.5">Permanently removes every ticket</p>
+          </div>
+          <button onclick="confirmAction('Clear all queues? This cannot be undone.', resetQueues)"
+            class="px-4 py-2 bg-red-600/15 text-red-400 border border-red-600/30 text-sm font-bold rounded-xl hover:bg-red-600/25 transition-all">
+            Reset Queues
+          </button>
+        </div>
+        <div class="flex items-center justify-between border-t border-slate-800 pt-4">
+          <div>
+            <p class="text-sm font-bold text-white">Mark All as Done</p>
+            <p class="text-xs text-slate-500 mt-0.5">Serve all remaining waiting tickets</p>
+          </div>
+          <button onclick="confirmAction('Mark all waiting tickets as done?', serveAll)"
+            class="px-4 py-2 bg-green-600/15 text-green-400 border border-green-600/30 text-sm font-bold rounded-xl hover:bg-green-600/25 transition-all">
+            Serve All
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end pages -->
+</div><!-- end main -->
+<script>
+// ══════════════════════════════════════════════════════════
+// SHARED localStorage LAYER  (same key as student page)
+// ══════════════════════════════════════════════════════════
+const DB_KEY  = 'smartqueue_db';
+const SERVICES = ['Advising','Enrollment','Payment'];
+const PREFIX   = {Advising:'A', Enrollment:'E', Payment:'P'};
+const SVC_CLR  = {Advising:'#137fec', Enrollment:'#22c55e', Payment:'#f59e0b'};
+
+// UI-only state (not persisted)
+let UI = { filter:'All', autoOn:true, autoTimer:null, mpp:5 };
+
+function dbRead() {
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return { tickets:[], counters:{Advising:0,Enrollment:0,Payment:0}, nowServing:null };
+}
+
+function dbWrite(data) {
+  localStorage.setItem(DB_KEY, JSON.stringify(data));
+}
+
+function dbInit() {
+  if (!localStorage.getItem(DB_KEY)) {
+    // Seed demo data on first load
+    const db = { tickets:[], counters:{Advising:0,Enrollment:0,Payment:0}, nowServing:null };
+    const NAMES = ['Juan Dela Cruz','Maria Santos','Carlo Reyes','Ana Gomez',
+                   'Lito Bautista','Rose Tan','Mark Lim','Jenny Abad'];
+    const CONCERNS = ['Course planning','Subject adding','Tuition payment',
+                      'Scholarship inquiry','Credit transfer','Grade rectification'];
+    SERVICES.forEach(svc => {
+      for (let i = 0; i < 4; i++) {
+        db.counters[svc]++;
+        const num = PREFIX[svc] + String(db.counters[svc]).padStart(3,'0');
+        const isDone = i < 2;
+        db.tickets.push({
+          id: Date.now() + Math.random(),
+          number: num,
+          name: NAMES[Math.floor(Math.random()*NAMES.length)],
+          service: svc,
+          concern: CONCERNS[Math.floor(Math.random()*CONCERNS.length)],
+          contact: '',
+          status: isDone ? 'done' : 'waiting',
+          issuedAt: new Date(Date.now() - (6-i)*7*60000).toISOString(),
+          calledAt: null,
+        });
+      }
+    });
+    const first = db.tickets.find(t => t.status === 'waiting');
+    if (first) { first.status = 'serving'; db.nowServing = {number:first.number,service:first.service,name:first.name}; }
+    dbWrite(db);
+  }
+}
+
+// Shorthand helpers that operate on a db snapshot
+function cnt(db, fn)           { return db.tickets.filter(fn).length; }
+function byStatus(s)           { return t => t.status === s; }
+function bySvc(svc)            { return t => t.service === svc; }
+function bySvcStatus(svc, s)   { return t => t.service === svc && t.status === s; }
+
+// ══════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════
+function uid() { return Date.now() + Math.random(); }
+function fmt(d) { return new Date(d).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}); }
+
+function badge(status) {
+  const map = {waiting:'badge-waiting Waiting',serving:'badge-serving Serving',done:'badge-done Done',skipped:'badge-skipped Skipped'};
+  const [cls,lbl] = (map[status]||'badge-done —').split(' ');
+  return `<span class="badge ${cls}">${lbl}</span>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════
+function toast(msg, icon='check_circle') {
+  document.getElementById('toast-msg').textContent  = msg;
+  document.getElementById('toast-icon').textContent = icon;
+  const el = document.getElementById('toast');
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// ══════════════════════════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════════════════════════
+function tickClock() {
+  const el = document.getElementById('clock');
+  if (el) el.textContent = new Date().toLocaleTimeString('en-PH');
+}
+setInterval(tickClock, 1000); tickClock();
+
+// ══════════════════════════════════════════════════════════
+// LOGIN / LOGOUT
+// ══════════════════════════════════════════════════════════
+function doLogin() {
+  const u = document.getElementById('l-user').value.trim();
+  const p = document.getElementById('l-pass').value;
+  if (u === 'admin' && p === 'admin123') {
+    document.getElementById('login-screen').style.display = 'none';
+    dbInit();
+    renderAll();
+    startAuto();
+  } else {
+    document.getElementById('l-err').classList.remove('hidden');
+  }
+}
+function doLogout() {
+  stopAuto();
+  document.getElementById('login-screen').style.display = 'flex';
+}
+document.getElementById('l-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+// ══════════════════════════════════════════════════════════
+// SIDEBAR & NAVIGATION
+// ══════════════════════════════════════════════════════════
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+const PAGE_META = {
+  dashboard : {title:'Dashboard',       sub:'Overview of all active queues'},
+  queue     : {title:'Queue Manager',   sub:'Manage and update live tickets'},
+  analytics : {title:'Analytics',       sub:'Stats and performance insights'},
+  settings  : {title:'Settings',        sub:'Configure queue behaviour'},
+};
+
+function showPage(name) {
+  ['dashboard','queue','analytics','settings'].forEach(p => {
+    document.getElementById('page-'+p).classList.toggle('hidden', p !== name);
+    const btn = document.getElementById('nav-'+p);
+    if (btn) btn.classList.toggle('active', p === name);
+  });
+  const m = PAGE_META[name];
+  document.getElementById('page-title').textContent = m.title;
+  document.getElementById('page-sub').textContent   = m.sub;
+  if (name === 'analytics') renderAnalytics();
+  if (name === 'queue')     renderQueue();
+  if (name === 'dashboard') renderDashboard();
+}
+
+// ══════════════════════════════════════════════════════════
+// TICKET CRUD — all reads/writes go through localStorage
+// ══════════════════════════════════════════════════════════
+function openAddTicketModal() {
+  document.getElementById('m-name').value    = '';
+  document.getElementById('m-contact').value = '';
+  document.getElementById('m-concern').value = '';
+  document.getElementById('m-err').classList.add('hidden');
+  openModal('ticket-modal');
+  setTimeout(() => document.getElementById('m-name').focus(), 100);
+}
+
+function submitTicket() {
+  const name    = document.getElementById('m-name').value.trim();
+  const service = document.getElementById('m-service').value;
+  const contact = document.getElementById('m-contact').value.trim();
+  const concern = document.getElementById('m-concern').value.trim();
+  if (!name) { document.getElementById('m-err').classList.remove('hidden'); return; }
+
+  const db = dbRead();
+  db.counters[service]++;
+  const num = PREFIX[service] + String(db.counters[service]).padStart(3,'0');
+  db.tickets.push({ id:uid(), number:num, name, service, concern, contact, status:'waiting', issuedAt:new Date().toISOString(), calledAt:null });
+  dbWrite(db);
+
+  closeModal('ticket-modal');
+  toast(`Ticket ${num} added for ${name}`, 'confirmation_number');
+  renderAll();
+}
+
+function markStatus(id, newStatus) {
+  const db = dbRead();
+  const t = db.tickets.find(x => String(x.id) === String(id));
+  if (!t) return;
+  t.status = newStatus;
+  if (newStatus === 'serving') {
+    t.calledAt    = new Date().toISOString();
+    db.nowServing = {number:t.number, service:t.service, name:t.name};
+    const notif = document.getElementById('cfg-notif');
+    if (!notif || notif.checked) toast(`📢 Now serving ${t.number} — ${t.name}`, 'campaign');
+  }
+  if (newStatus === 'done' && db.nowServing?.number === t.number) db.nowServing = null;
+  dbWrite(db);
+  renderAll();
+}
+
+function removeTicket(id) {
+  confirmAction('Remove this ticket permanently?', () => {
+    const db = dbRead();
+    const t = db.tickets.find(x => String(x.id) === String(id));
+    db.tickets = db.tickets.filter(x => String(x.id) !== String(id));
+    if (t && db.nowServing?.number === t.number) db.nowServing = null;
+    dbWrite(db);
+    toast('Ticket removed.', 'delete');
+    renderAll();
+  });
+}
+
+function callNext(svc) {
+  const db   = dbRead();
+  const pool = svc
+    ? db.tickets.filter(t => t.service === svc && t.status === 'waiting')
+    : db.tickets.filter(t => t.status === 'waiting');
+  if (!pool.length) { toast(`No waiting tickets${svc?' for '+svc:''}.`, 'info'); return; }
+  // Mark current serving as done
+  if (db.nowServing) {
+    const cur = db.tickets.find(t => t.number === db.nowServing.number && t.status === 'serving');
+    if (cur) cur.status = 'done';
+  }
+  const next = pool[0];
+  next.status    = 'serving';
+  next.calledAt  = new Date().toISOString();
+  db.nowServing  = {number:next.number, service:next.service, name:next.name};
+  dbWrite(db);
+  const notif = document.getElementById('cfg-notif');
+  if (!notif || notif.checked) toast(`📢 Calling ${next.number} — ${next.name}`, 'campaign');
+  renderAll();
+}
+
+// ══════════════════════════════════════════════════════════
+// FILTER
+// ══════════════════════════════════════════════════════════
+function filterService(svc) {
+  UI.filter = svc;
+  ['All','Advising','Enrollment','Payment'].forEach(s => {
+    const el = document.getElementById('tab-'+s);
+    if (el) el.classList.toggle('active', s === svc);
+  });
+  renderQueue();
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER DASHBOARD — reads from localStorage
+// ══════════════════════════════════════════════════════════
+function renderDashboard() {
+  const db      = dbRead();
+  const total   = db.tickets.length;
+  const done    = cnt(db, byStatus('done'));
+  const waiting = cnt(db, byStatus('waiting'));
+  const avgWait = waiting * UI.mpp;
+
+  document.getElementById('s-total').textContent   = total;
+  document.getElementById('s-done').textContent    = done;
+  document.getElementById('s-waiting').textContent = waiting;
+  document.getElementById('s-wait').textContent    = avgWait;
+
+  const ns = db.nowServing;
+  document.getElementById('d-now').textContent     = ns ? ns.number : '—';
+  document.getElementById('d-now-svc').textContent = ns ? `${ns.name} · ${ns.service}` : 'No active ticket';
+
+  // Breakdown bars
+  document.getElementById('breakdown').innerHTML = SERVICES.map(svc => {
+    const tot  = cnt(db, bySvc(svc));
+    const d    = cnt(db, bySvcStatus(svc,'done'));
+    const w    = cnt(db, bySvcStatus(svc,'waiting'));
+    const pct  = tot > 0 ? Math.round((d/tot)*100) : 0;
+    return `
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-sm font-bold text-white">${svc}</span>
+          <span class="text-xs text-slate-400 font-semibold">${d}/${tot} served &middot; ${w} waiting</span>
+        </div>
+        <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+          <div class="h-full rounded-full transition-all duration-700" style="width:${pct}%;background:${SVC_CLR[svc]}"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Recent tickets (last 8)
+  const recent = [...db.tickets].reverse().slice(0, 8);
+  document.getElementById('recent-body').innerHTML = recent.length
+    ? recent.map(t => `
+        <tr class="hover:bg-slate-800/30 transition-colors">
+          <td class="px-5 py-3 font-black text-primary text-sm">${t.number}</td>
+          <td class="px-5 py-3 font-semibold text-white text-sm">${t.name||'—'}</td>
+          <td class="px-5 py-3 text-slate-400 text-sm">${t.service}</td>
+          <td class="px-5 py-3">${badge(t.status)}</td>
+          <td class="px-5 py-3 text-slate-500 text-xs">${fmt(t.issuedAt)}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="5" class="px-5 py-8 text-center text-slate-600 text-sm font-semibold">No tickets yet.</td></tr>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER QUEUE TABLE
+// ══════════════════════════════════════════════════════════
+function renderQueue() {
+  const db  = dbRead();
+  const q   = (document.getElementById('q-search')?.value||'').toLowerCase();
+  let list  = [...db.tickets].reverse();
+  if (UI.filter !== 'All') list = list.filter(t => t.service === UI.filter);
+  if (q) list = list.filter(t => t.name.toLowerCase().includes(q) || t.number.toLowerCase().includes(q));
+
+  const empty = document.getElementById('queue-empty');
+  const tbody = document.getElementById('queue-body');
+  if (!list.length) { empty.classList.remove('hidden'); tbody.innerHTML=''; return; }
+  empty.classList.add('hidden');
+
+  tbody.innerHTML = list.map(t => `
+    <tr class="hover:bg-slate-800/30 transition-colors">
+      <td class="px-5 py-4 font-black text-primary">${t.number}</td>
+      <td class="px-5 py-4 font-semibold text-white">${t.name||'Guest'}</td>
+      <td class="px-5 py-4 text-slate-400 text-sm">${t.service}</td>
+      <td class="px-5 py-4 text-slate-500 text-xs max-w-[140px] truncate hidden md:table-cell">${t.concern||'—'}</td>
+      <td class="px-5 py-4">${badge(t.status)}</td>
+      <td class="px-5 py-4 text-slate-500 text-xs hidden sm:table-cell">${fmt(t.issuedAt)}</td>
+      <td class="px-5 py-4">
+        <div class="flex gap-1.5">
+          ${t.status==='waiting' ? `
+            <button title="Call Now" onclick="markStatus('${t.id}','serving')"
+              class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary/10 hover:bg-primary/25 text-primary transition-colors">
+              <span class="material-symbols-outlined text-base">play_arrow</span>
+            </button>
+            <button title="Skip" onclick="markStatus('${t.id}','skipped')"
+              class="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-500/10 hover:bg-amber-500/25 text-amber-400 transition-colors">
+              <span class="material-symbols-outlined text-base">skip_next</span>
+            </button>` : ''}
+          ${t.status==='serving' ? `
+            <button title="Mark Done" onclick="markStatus('${t.id}','done')"
+              class="w-8 h-8 flex items-center justify-center rounded-lg bg-green-500/10 hover:bg-green-500/25 text-green-400 transition-colors">
+              <span class="material-symbols-outlined text-base">check</span>
+            </button>` : ''}
+          ${t.status==='skipped' ? `
+            <button title="Restore to Waiting" onclick="markStatus('${t.id}','waiting')"
+              class="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500/10 hover:bg-blue-500/25 text-blue-400 transition-colors">
+              <span class="material-symbols-outlined text-base">restart_alt</span>
+            </button>` : ''}
+          <button title="Remove" onclick="removeTicket('${t.id}')"
+            class="w-8 h-8 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/25 text-red-400 transition-colors">
+            <span class="material-symbols-outlined text-base">delete</span>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER ANALYTICS
+// ══════════════════════════════════════════════════════════
+function renderAnalytics() {
+  const db = dbRead();
+
+  // Hourly chart
+  const hours = {};
+  for (let h = 7; h <= 17; h++) hours[h] = 0;
+  db.tickets.forEach(t => {
+    const h = new Date(t.issuedAt).getHours();
+    if (h >= 7 && h <= 17) hours[h]++;
+  });
+  const maxH = Math.max(1, ...Object.values(hours));
+  document.getElementById('hourly-chart').innerHTML = Object.entries(hours).map(([h,v]) => {
+    const pct = Math.round((v/maxH)*100);
+    return `
+      <div class="bar-wrap flex-1 flex flex-col items-center gap-1 relative group cursor-default">
+        <div class="bar-val absolute -top-5 text-xs font-black text-primary">${v}</div>
+        <div class="w-full bg-slate-800 rounded-t-sm overflow-hidden flex items-end" style="height:100%">
+          <div class="w-full rounded-t-sm" style="height:${Math.max(pct,3)}%;background:${pct>0?'#137fec':'#1e2d3d'}"></div>
+        </div>
+      </div>`;
+  }).join('');
+  document.getElementById('hourly-labels').innerHTML = Object.keys(hours).map(h => {
+    const label = h > 12 ? `${h-12}p` : h == 12 ? '12p' : `${h}a`;
+    return `<span class="flex-1 text-center text-[10px] text-slate-600 font-bold">${label}</span>`;
+  }).join('');
+
+  // Distribution bars
+  const total = db.tickets.length || 1;
+  document.getElementById('dist-chart').innerHTML = SERVICES.map(svc => {
+    const n   = cnt(db, bySvc(svc));
+    const pct = Math.round((n/total)*100);
+    return `
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-sm font-bold text-white">${svc}</span>
+          <span class="text-xs font-bold" style="color:${SVC_CLR[svc]}">${n} tickets (${pct}%)</span>
+        </div>
+        <div class="h-2.5 bg-slate-800 rounded-full overflow-hidden">
+          <div class="h-full rounded-full transition-all duration-700" style="width:${pct}%;background:${SVC_CLR[svc]}"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Performance table
+  document.getElementById('analytics-body').innerHTML = SERVICES.map(svc => {
+    const tot  = cnt(db, bySvc(svc));
+    const done = cnt(db, bySvcStatus(svc,'done'));
+    const wait = cnt(db, bySvcStatus(svc,'waiting'));
+    const pct  = tot > 0 ? Math.round((done/tot)*100) : 0;
+    return `
+      <tr class="hover:bg-slate-800/30 transition-colors">
+        <td class="px-5 py-4">
+          <div class="flex items-center gap-2">
+            <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${SVC_CLR[svc]}"></div>
+            <span class="font-bold text-white text-sm">${svc}</span>
+          </div>
+        </td>
+        <td class="px-5 py-4 text-white font-semibold">${tot}</td>
+        <td class="px-5 py-4 text-green-400 font-semibold">${done}</td>
+        <td class="px-5 py-4 text-blue-400 font-semibold">${wait}</td>
+        <td class="px-5 py-4">
+          <div class="flex items-center gap-2">
+            <div class="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div class="h-full rounded-full" style="width:${pct}%;background:${SVC_CLR[svc]}"></div>
+            </div>
+            <span class="text-xs font-black text-white">${pct}%</span>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER ALL
+// ══════════════════════════════════════════════════════════
+function renderAll() {
+  renderDashboard();
+  renderQueue();
+  if (!document.getElementById('page-analytics').classList.contains('hidden')) renderAnalytics();
+}
+
+// ══════════════════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════════════════
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+let _confirmCb = null;
+function confirmAction(msg, cb) {
+  document.getElementById('confirm-msg').textContent = msg;
+  _confirmCb = cb;
+  openModal('confirm-modal');
+}
+document.getElementById('confirm-ok').onclick = () => {
+  closeModal('confirm-modal');
+  if (_confirmCb) _confirmCb();
+  _confirmCb = null;
+};
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) closeModal(el.id); });
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(m => closeModal(m.id));
+});
+
+// ══════════════════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════════════════
+function saveSettings() {
+  UI.mpp = parseInt(document.getElementById('cfg-mpp').value) || 5;
+  toast('Settings saved.', 'settings');
+  renderAll();
+}
+
+function toggleAuto() {
+  UI.autoOn = document.getElementById('cfg-auto').checked;
+  UI.autoOn ? startAuto() : stopAuto();
+}
+
+// ══════════════════════════════════════════════════════════
+// BULK ACTIONS
+// ══════════════════════════════════════════════════════════
+function resetQueues() {
+  dbWrite({ tickets:[], counters:{Advising:0,Enrollment:0,Payment:0}, nowServing:null });
+  toast('All queues cleared.', 'delete_sweep');
+  renderAll();
+}
+
+function serveAll() {
+  const db = dbRead();
+  db.tickets.forEach(t => { if (t.status === 'waiting' || t.status === 'serving') t.status = 'done'; });
+  db.nowServing = null;
+  dbWrite(db);
+  toast('All tickets marked as done.', 'done_all');
+  renderAll();
+}
+
+// ══════════════════════════════════════════════════════════
+// AUTO-ADVANCE — writes to localStorage so student page sees it
+// ══════════════════════════════════════════════════════════
+function startAuto() {
+  stopAuto();
+  UI.autoTimer = setInterval(() => {
+    if (!UI.autoOn) return;
+    const db = dbRead();
+    // Mark current serving as done
+    if (db.nowServing) {
+      const cur = db.tickets.find(t => t.number === db.nowServing.number && t.status === 'serving');
+      if (cur) { cur.status = 'done'; db.nowServing = null; }
+    }
+    // Call next waiting
+    const next = db.tickets.find(t => t.status === 'waiting');
+    if (next) {
+      next.status   = 'serving';
+      next.calledAt = new Date().toISOString();
+      db.nowServing = {number:next.number, service:next.service, name:next.name};
+      const notif = document.getElementById('cfg-notif');
+      if (!notif || notif.checked) toast(`📢 Calling ${next.number} — ${next.name}`, 'campaign');
+    }
+    dbWrite(db);   // <-- this triggers the student page's storage listener
+    renderAll();
+  }, 12000);
+}
+
+function stopAuto() {
+  clearInterval(UI.autoTimer);
+  UI.autoTimer = null;
+}
+
+// ══════════════════════════════════════════════════════════
+// LISTEN FOR STUDENT-PAGE BOOKINGS (other tab writes to localStorage)
+// ══════════════════════════════════════════════════════════
+window.addEventListener('storage', e => {
+  if (e.key === DB_KEY) renderAll();
+});
+
+// Poll every 3s as fallback
+setInterval(renderAll, 3000);
+
+// Toggle switch styling
+document.querySelectorAll('input[type=checkbox].sr-only').forEach(cb => {
+  function applyToggle() {
+    const track = cb.nextElementSibling;
+    if (!track) return;
+    const thumb = track.querySelector('.toggle-thumb');
+    track.style.background = cb.checked ? '#137fec' : '';
+    if (thumb) thumb.style.transform = cb.checked ? 'translateX(20px)' : '';
+  }
+  cb.addEventListener('change', applyToggle);
+  applyToggle();
+});
+</script>
+</body>
+</html>

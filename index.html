@@ -370,18 +370,35 @@
 
 <!-- ─── JAVASCRIPT ─────────────────────────────────────────── -->
 <script>
-// ══════════════════════════════════════════════════
-// STATE
-// ══════════════════════════════════════════════════
-const MINS_PER_PERSON = 5; // estimated service time per person
+// ══════════════════════════════════════════════════════════════
+// SHARED localStorage LAYER
+// Key: 'smartqueue_db'
+// Schema: { tickets: [], counters: {}, nowServing: null }
+// Both pages read/write this key and listen for 'storage' events
+// ══════════════════════════════════════════════════════════════
+const DB_KEY = 'smartqueue_db';
+const MINS_PER_PERSON = 5;
+const PREFIX = { Advising:'A', Enrollment:'E', Payment:'P' };
 
-const state = {
-    queues: { Advising: [], Enrollment: [], Payment: [] },
-    nowServing: { Advising: 0, Enrollment: 0, Payment: 0 },
-    counters: { Advising: 0, Enrollment: 0, Payment: 0 },
-    myTicket: null,     // { number, service, name, contact }
-    progressInterval: null,
-};
+function dbRead() {
+    try {
+        const raw = localStorage.getItem(DB_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return { tickets: [], counters: { Advising:0, Enrollment:0, Payment:0 }, nowServing: null };
+}
+
+function dbWrite(data) {
+    localStorage.setItem(DB_KEY, JSON.stringify(data));
+}
+
+function dbInit() {
+    if (!localStorage.getItem(DB_KEY)) dbWrite({ tickets: [], counters: { Advising:0, Enrollment:0, Payment:0 }, nowServing: null });
+}
+
+// ── local session state (not shared) ──────────────────────────
+let myTicketNumber = null;   // only this browser's ticket
+let progressInterval = null;
 
 // ══════════════════════════════════════════════════
 // HELPERS
@@ -391,15 +408,14 @@ function showToast(msg, icon = 'check_circle') {
     document.getElementById('toast-msg').textContent = msg;
     document.getElementById('toast-icon').textContent = icon;
     t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 3000);
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
 function flipCounter(el, newVal) {
+    if (el.textContent === String(newVal)) return;
     el.classList.add('flip');
-    setTimeout(() => {
-        el.textContent = newVal;
-        el.classList.remove('flip');
-    }, 300);
+    setTimeout(() => { el.textContent = newVal; el.classList.remove('flip'); }, 300);
 }
 
 function getSelectedService() {
@@ -407,104 +423,100 @@ function getSelectedService() {
     return checked ? checked.value : 'Advising';
 }
 
-function generateTicketNumber(service) {
-    const prefix = { Advising: 'A', Enrollment: 'E', Payment: 'P' }[service];
-    state.counters[service]++;
-    return prefix + String(state.counters[service]).padStart(3, '0');
+function getWaiting(db, service) {
+    return db.tickets.filter(t => t.service === service && t.status === 'waiting').length;
 }
 
-function getQueueDepth(service) {
-    return state.queues[service].filter(t => !t.served).length;
+function getTotalWaiting(db) {
+    return db.tickets.filter(t => t.status === 'waiting').length;
 }
 
-function getTotalDepth() {
-    return Object.keys(state.queues).reduce((sum, s) => sum + getQueueDepth(s), 0);
-}
-
-function getWaitTime() {
-    const total = getTotalDepth();
-    return Math.max(0, total * MINS_PER_PERSON);
-}
-
-function getMyPosition() {
-    if (!state.myTicket) return null;
-    const { service, number } = state.myTicket;
-    const q = state.queues[service];
-    const idx = q.findIndex(t => t.number === number && !t.served);
-    return idx === -1 ? 0 : idx + 1;
+function getMyPosition(db) {
+    if (!myTicketNumber) return null;
+    const mine = db.tickets.find(t => t.number === myTicketNumber);
+    if (!mine || mine.status !== 'waiting') return 0;
+    const ahead = db.tickets.filter(t => t.service === mine.service && t.status === 'waiting'
+        && new Date(t.issuedAt) <= new Date(mine.issuedAt) && t.number !== mine.number).length;
+    return ahead + 1;
 }
 
 // ══════════════════════════════════════════════════
-// UI UPDATES
+// UI UPDATES — reads from shared DB
 // ══════════════════════════════════════════════════
 function updateDashboard() {
-    // Now serving — find most recently called ticket overall
-    let latestServed = null;
-    let latestService = null;
-    Object.keys(state.queues).forEach(s => {
-        const served = state.queues[s].filter(t => t.served);
-        if (served.length) {
-            const last = served[served.length - 1];
-            if (!latestServed || last.calledAt > latestServed.calledAt) {
-                latestServed = last;
-                latestService = s;
-            }
-        }
-    });
+    const db = dbRead();
 
+    // Now serving
+    const ns = db.nowServing;
     const nowEl = document.getElementById('now-serving-display');
     const svcEl = document.getElementById('now-serving-service');
-    const newServing = latestServed ? latestServed.number : '—';
-    if (nowEl.textContent !== newServing) {
-        flipCounter(nowEl, newServing);
-        svcEl.textContent = latestService || 'No active service';
-    }
+    flipCounter(nowEl, ns ? ns.number : '—');
+    svcEl.textContent = ns ? ns.service : 'No active service';
 
-    // Wait time
-    const wm = getWaitTime();
-    const waitEl = document.getElementById('wait-mins');
-    if (waitEl.textContent !== String(wm)) flipCounter(waitEl, wm);
-
-    // Queue depth
-    const td = getTotalDepth();
-    const depthEl = document.getElementById('queue-depth');
-    if (depthEl.textContent !== String(td)) flipCounter(depthEl, td);
+    // Wait time & depth
+    const waiting = getTotalWaiting(db);
+    flipCounter(document.getElementById('wait-mins'), waiting * MINS_PER_PERSON);
+    flipCounter(document.getElementById('queue-depth'), waiting);
 
     // Per-service counts
-    document.getElementById('count-adv').textContent = getQueueDepth('Advising');
-    document.getElementById('count-enr').textContent = getQueueDepth('Enrollment');
-    document.getElementById('count-pay').textContent = getQueueDepth('Payment');
+    document.getElementById('count-adv').textContent = getWaiting(db, 'Advising');
+    document.getElementById('count-enr').textContent = getWaiting(db, 'Enrollment');
+    document.getElementById('count-pay').textContent = getWaiting(db, 'Payment');
 
     // Nav ticket badge
     const navBtn = document.getElementById('nav-ticket-btn');
-    if (state.myTicket) {
+    if (myTicketNumber) {
         navBtn.classList.remove('hidden');
         navBtn.classList.add('flex');
-        document.getElementById('nav-ticket-label').textContent = state.myTicket.number;
+        document.getElementById('nav-ticket-label').textContent = myTicketNumber;
     } else {
         navBtn.classList.add('hidden');
         navBtn.classList.remove('flex');
     }
+
+    // Check if MY ticket was called by admin
+    if (myTicketNumber) {
+        const mine = db.tickets.find(t => t.number === myTicketNumber);
+        if (mine && mine.status === 'serving') {
+            document.getElementById('progress-bar-inner').style.width = '100%';
+            document.getElementById('progress-label').textContent = '✓ Your turn! Please proceed to the counter.';
+            document.getElementById('ticket-wait').textContent = 'Now!';
+            showToast(`🔔 ${myTicketNumber} — It's your turn! Please proceed.`, 'notifications_active');
+        } else if (mine && mine.status === 'done') {
+            document.getElementById('progress-bar-inner').style.width = '100%';
+            document.getElementById('progress-label').textContent = '✓ Ticket completed. Thank you!';
+            myTicketNumber = null;
+            updateDashboard();
+        }
+    }
 }
 
 function updateTicketProgress() {
-    if (!state.myTicket) return;
-    const pos = getMyPosition();
-    const depth = getQueueDepth(state.myTicket.service);
-    const total = state.counters[state.myTicket.service];
+    if (!myTicketNumber) return;
+    const db = dbRead();
+    const pos = getMyPosition(db);
+    const mine = db.tickets.find(t => t.number === myTicketNumber);
+    if (!mine) return;
 
-    if (pos === 0) {
-        // Ticket served or cancelled
+    if (mine.status === 'serving') {
         document.getElementById('progress-bar-inner').style.width = '100%';
         document.getElementById('progress-label').textContent = '✓ Your turn! Please proceed to the counter.';
-        clearInterval(state.progressInterval);
+        document.getElementById('ticket-wait').textContent = 'Now!';
+        clearInterval(progressInterval);
         return;
     }
+    if (mine.status === 'done' || mine.status === 'skipped') {
+        document.getElementById('progress-bar-inner').style.width = '100%';
+        document.getElementById('progress-label').textContent = mine.status === 'done' ? '✓ Ticket completed. Thank you!' : '⚠ Your ticket was skipped. Please re-queue.';
+        clearInterval(progressInterval);
+        return;
+    }
+    if (!pos) return;
 
+    const total = db.counters[mine.service];
     const pct = total > 0 ? Math.round(((total - pos) / total) * 100) : 0;
     document.getElementById('progress-bar-inner').style.width = pct + '%';
-    document.getElementById('progress-label').textContent =
-        `You are #${pos} in line — ~${pos * MINS_PER_PERSON} mins remaining`;
+    document.getElementById('progress-label').textContent = `You are #${pos} in line — ~${pos * MINS_PER_PERSON} mins remaining`;
     document.getElementById('ticket-wait').textContent = `~${pos * MINS_PER_PERSON} mins`;
 }
 
@@ -524,26 +536,30 @@ function openBookingModal() {
 
 function closeModal() {
     document.getElementById('modal-overlay').classList.remove('active');
-    clearInterval(state.progressInterval);
+    clearInterval(progressInterval);
 }
 
 function viewMyTicket() {
-    if (!state.myTicket) return;
+    if (!myTicketNumber) return;
+    const db = dbRead();
+    const mine = db.tickets.find(t => t.number === myTicketNumber);
+    if (!mine) return;
     document.getElementById('step-confirm').classList.add('hidden');
     document.getElementById('step-ticket').classList.remove('hidden');
-    document.getElementById('ticket-number-display').textContent = state.myTicket.number;
-    document.getElementById('ticket-service').textContent = state.myTicket.service;
-    document.getElementById('ticket-name').textContent = state.myTicket.name || 'Guest';
+    document.getElementById('ticket-number-display').textContent = mine.number;
+    document.getElementById('ticket-service').textContent = mine.service;
+    document.getElementById('ticket-name').textContent = mine.name || 'Guest';
     document.getElementById('modal-overlay').classList.add('active');
     startProgressTracking();
 }
 
 // ══════════════════════════════════════════════════
-// BOOKING
+// BOOKING — writes to shared DB
 // ══════════════════════════════════════════════════
 function generateTicket() {
-    const name = document.getElementById('input-name').value.trim();
+    const name    = document.getElementById('input-name').value.trim();
     const contact = document.getElementById('input-contact').value.trim();
+    const concern = document.getElementById('input-concern').value.trim();
     const service = document.getElementById('modal-service-name').textContent;
 
     if (!name) {
@@ -552,46 +568,57 @@ function generateTicket() {
         return;
     }
 
-    const ticketNum = generateTicketNumber(service);
-    const ticket = { number: ticketNum, service, name, contact, served: false, calledAt: null };
-    state.queues[service].push(ticket);
-    state.myTicket = ticket;
+    // Write to shared DB
+    const db = dbRead();
+    db.counters[service]++;
+    const ticketNum = PREFIX[service] + String(db.counters[service]).padStart(3, '0');
+    db.tickets.push({
+        id: Date.now() + Math.random(),
+        number: ticketNum,
+        name, service, concern, contact,
+        status: 'waiting',
+        issuedAt: new Date().toISOString(),
+        calledAt: null,
+    });
+    dbWrite(db);
+
+    myTicketNumber = ticketNum;
 
     // Show ticket step
     document.getElementById('step-confirm').classList.add('hidden');
     document.getElementById('step-ticket').classList.remove('hidden');
     document.getElementById('ticket-number-display').textContent = ticketNum;
     document.getElementById('ticket-service').textContent = service;
-    document.getElementById('ticket-name').textContent = name || 'Guest';
-    document.getElementById('ticket-wait').textContent = `~${getMyPosition() * MINS_PER_PERSON} mins`;
+    document.getElementById('ticket-name').textContent = name;
     document.getElementById('progress-bar-inner').style.width = '0%';
 
     updateDashboard();
+    updateTicketProgress();
     startProgressTracking();
 
-    // Mock notification
-    if (contact) {
-        setTimeout(() => showToast(`Notification sent to ${contact}`, 'notifications'), 1200);
-    }
-
+    if (contact) setTimeout(() => showToast(`Notification sent to ${contact}`, 'notifications'), 1200);
     showToast(`Ticket ${ticketNum} confirmed!`);
 }
 
 function cancelTicket() {
-    if (!state.myTicket) return;
-    const { service, number } = state.myTicket;
-    const idx = state.queues[service].findIndex(t => t.number === number);
-    if (idx !== -1) state.queues[service].splice(idx, 1);
-    state.myTicket = null;
-    clearInterval(state.progressInterval);
+    if (!myTicketNumber) return;
+    const db = dbRead();
+    const idx = db.tickets.findIndex(t => t.number === myTicketNumber);
+    if (idx !== -1) db.tickets.splice(idx, 1);
+    dbWrite(db);
+    myTicketNumber = null;
+    clearInterval(progressInterval);
     closeModal();
     updateDashboard();
     showToast('Ticket cancelled.', 'cancel');
 }
 
 function copyTicket() {
-    if (!state.myTicket) return;
-    const text = `SmartQueue PH Ticket\nNumber: ${state.myTicket.number}\nService: ${state.myTicket.service}\nName: ${state.myTicket.name}`;
+    if (!myTicketNumber) return;
+    const db = dbRead();
+    const mine = db.tickets.find(t => t.number === myTicketNumber);
+    if (!mine) return;
+    const text = `SmartQueue PH Ticket\nNumber: ${mine.number}\nService: ${mine.service}\nName: ${mine.name}`;
     navigator.clipboard.writeText(text).then(() => showToast('Ticket details copied!'));
 }
 
@@ -599,56 +626,31 @@ function copyTicket() {
 // PROGRESS TRACKING
 // ══════════════════════════════════════════════════
 function startProgressTracking() {
-    clearInterval(state.progressInterval);
+    clearInterval(progressInterval);
     updateTicketProgress();
-    state.progressInterval = setInterval(updateTicketProgress, 5000);
+    progressInterval = setInterval(updateTicketProgress, 3000);
 }
 
 // ══════════════════════════════════════════════════
-// SIMULATED LIVE QUEUE ADVANCEMENT
-// Calls the next ticket every ~12 seconds to demo live updates
+// LISTEN FOR CHANGES FROM ADMIN (other tab)
 // ══════════════════════════════════════════════════
-function advanceQueue() {
-    // Pick a service that has unserved tickets
-    const active = Object.keys(state.queues).filter(s => getQueueDepth(s) > 0);
-    if (!active.length) return;
-
-    const service = active[Math.floor(Math.random() * active.length)];
-    const next = state.queues[service].find(t => !t.served);
-    if (!next) return;
-
-    next.served = true;
-    next.calledAt = Date.now();
-    state.nowServing[service] = next.number;
-
-    // If it's the user's ticket, alert them
-    if (state.myTicket && next.number === state.myTicket.number) {
-        showToast(`🔔 ${next.number} — It's your turn! Please proceed.`, 'notifications_active');
-        document.getElementById('progress-label').textContent = '✓ Your turn! Please proceed to the counter.';
-        document.getElementById('progress-bar-inner').style.width = '100%';
-        state.myTicket = null;
+window.addEventListener('storage', e => {
+    if (e.key === DB_KEY) {
+        updateDashboard();
+        updateTicketProgress();
     }
-
-    updateDashboard();
-    updateTicketProgress();
-}
-
-// Advance queue automatically every 12 seconds (demo)
-setInterval(advanceQueue, 12000);
-
-// ══════════════════════════════════════════════════
-// KEYBOARD: close modal on Escape
-// ══════════════════════════════════════════════════
-document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeModal();
 });
 
-// Close modal when clicking overlay background
-document.getElementById('modal-overlay').addEventListener('click', function(e) {
-    if (e.target === this) closeModal();
-});
+// Poll every 3s as fallback (same tab edge cases)
+setInterval(() => { updateDashboard(); updateTicketProgress(); }, 3000);
 
-// Initial render
+// ══════════════════════════════════════════════════
+// KEYBOARD + INIT
+// ══════════════════════════════════════════════════
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+dbInit();
 updateDashboard();
 </script>
 </body>
