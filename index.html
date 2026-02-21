@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>SmartQueue PH - Home Screen</title>
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        display: ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.25rem",
+                        lg: "0.5rem",
+                        xl: "0.75rem",
+                        full: "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+        /* Modal */
+        #modal-overlay {
+            display: none;
+            position: fixed; inset: 0; z-index: 100;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            align-items: center; justify-content: center;
+        }
+        #modal-overlay.active { display: flex; }
+        #modal-box { animation: popIn .25s cubic-bezier(.34,1.56,.64,1) both; }
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(.85) translateY(20px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* Toast */
+        #toast {
+            position: fixed; bottom: 2rem; right: 2rem; z-index: 200;
+            transition: opacity .3s, transform .3s;
+            opacity: 0; pointer-events: none; transform: translateY(12px);
+        }
+        #toast.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+
+        /* Ticket pulse */
+        @keyframes ticketPulse {
+            0%,100% { box-shadow: 0 0 0 0 rgba(19,127,236,.4); }
+            50%      { box-shadow: 0 0 0 16px rgba(19,127,236,0); }
+        }
+        .ticket-pulse { animation: ticketPulse 2s infinite; }
+
+        /* Progress bar */
+        #progress-bar-inner { transition: width 1s ease; }
+
+        /* Counter flip */
+        .counter-val { transition: transform .3s ease, opacity .3s ease; }
+        .counter-val.flip { transform: translateY(-8px); opacity: 0; }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+
+<!-- ─── TOAST ──────────────────────────────────────────────── -->
+<div id="toast" class="px-5 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-3 max-w-xs">
+    <span class="material-symbols-outlined text-green-400 dark:text-green-600" id="toast-icon">check_circle</span>
+    <span id="toast-msg">Done!</span>
+</div>
+
+<!-- ─── TICKET MODAL ───────────────────────────────────────── -->
+<div id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div id="modal-box" class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+
+        <!-- Step 1: Confirm booking -->
+        <div id="step-confirm" class="p-8">
+            <div class="flex items-center justify-between mb-6">
+                <h2 id="modal-title" class="text-xl font-bold">Confirm Booking</h2>
+                <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <span class="material-symbols-outlined text-xl">close</span>
+                </button>
+            </div>
+            <div class="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6">
+                <p class="text-xs font-bold uppercase tracking-widest text-primary mb-1">Service Selected</p>
+                <p class="text-xl font-extrabold" id="modal-service-name">Advising</p>
+            </div>
+            <div class="space-y-3 mb-6">
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider" for="input-name">Full Name</label>
+                    <input id="input-name" type="text" placeholder="e.g. Juan dela Cruz"
+                        class="mt-1 w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"/>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider" for="input-contact">Email or Phone (optional)</label>
+                    <input id="input-contact" type="text" placeholder="e.g. juan@uni.edu or 09xxxxxxxxx"
+                        class="mt-1 w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"/>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider" for="input-concern">Concern / Purpose</label>
+                    <textarea id="input-concern" rows="2" placeholder="Briefly describe your concern..."
+                        class="mt-1 w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition resize-none"></textarea>
+                </div>
+            </div>
+            <button onclick="generateTicket()" class="w-full py-3.5 bg-primary text-white font-extrabold rounded-xl shadow-md shadow-primary/30 hover:bg-primary/90 active:scale-[.98] transition-all">
+                Confirm &amp; Get Ticket
+            </button>
+        </div>
+
+        <!-- Step 2: Ticket issued -->
+        <div id="step-ticket" class="hidden p-8 text-center">
+            <div class="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="material-symbols-outlined text-3xl">confirmation_number</span>
+            </div>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Your Queue Ticket</p>
+            <div id="ticket-number-display"
+                class="text-7xl font-black text-primary my-4 ticket-pulse rounded-2xl py-4">
+                —
+            </div>
+            <p class="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-1">Service: <span id="ticket-service" class="text-slate-900 dark:text-white"></span></p>
+            <p class="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-1">Name: <span id="ticket-name" class="text-slate-900 dark:text-white"></span></p>
+            <p class="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-4">Estimated Wait: <span id="ticket-wait" class="text-primary font-bold"></span></p>
+
+            <!-- Progress tracker -->
+            <div class="bg-slate-100 dark:bg-slate-800 rounded-full h-2 mb-2 overflow-hidden">
+                <div id="progress-bar-inner" class="h-full bg-primary rounded-full" style="width:0%"></div>
+            </div>
+            <p class="text-xs text-slate-400 mb-6"><span id="progress-label">Waiting…</span></p>
+
+            <div class="flex gap-3">
+                <button onclick="copyTicket()" class="flex-1 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-base">content_copy</span> Copy
+                </button>
+                <button onclick="closeModal()" class="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors">
+                    Done
+                </button>
+            </div>
+            <button onclick="cancelTicket()" class="mt-3 w-full py-2 text-xs text-red-400 hover:text-red-500 font-semibold transition-colors">
+                Cancel my ticket
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── TOP NAV ────────────────────────────────────────────── -->
+<header class="sticky top-0 z-50 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="bg-primary text-white p-1.5 rounded-lg flex items-center justify-center">
+                <span class="material-symbols-outlined text-2xl">confirmation_number</span>
+            </div>
+            <h1 class="text-xl font-extrabold tracking-tight text-primary">SmartQueue PH</h1>
+        </div>
+
+        <nav class="hidden md:flex items-center gap-8">
+            <a class="text-sm font-semibold hover:text-primary transition-colors" href="#">Live Status</a>
+            <a class="text-sm font-semibold hover:text-primary transition-colors" href="#">Services</a>
+            <a class="text-sm font-semibold hover:text-primary transition-colors" href="#">About</a>
+            <a class="text-sm font-semibold hover:text-primary transition-colors" href="#">Support</a>
+        </nav>
+
+        <div class="flex items-center gap-4">
+            <!-- Active ticket badge (hidden by default) -->
+            <button id="nav-ticket-btn" onclick="viewMyTicket()" class="hidden items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors">
+                <span class="material-symbols-outlined text-base">confirmation_number</span>
+                <span id="nav-ticket-label">My Ticket</span>
+            </button>
+            <button class="px-5 py-2 text-sm font-bold text-primary hover:bg-primary/5 rounded-lg transition-all">Login</button>
+            <button class="px-5 py-2 text-sm font-bold bg-primary text-white rounded-lg shadow-sm hover:bg-primary/90 transition-all">Register</button>
+        </div>
+    </div>
+</header>
+
+<main class="flex-grow max-w-7xl mx-auto w-full px-6 py-10">
+
+    <!-- ─── LIVE STATUS ──────────────────────────────────────── -->
+    <section class="mb-12">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+            <div class="max-w-2xl">
+                <h2 class="text-4xl font-black text-slate-900 dark:text-white mb-3">Live Queue Status</h2>
+                <p class="text-slate-500 dark:text-slate-400 text-lg">Real-time update for campus service departments. View current progress and plan your visit.</p>
+            </div>
+            <div class="flex items-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-full text-sm font-bold border border-green-100 dark:border-green-800">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                System Online
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Now Serving -->
+            <div class="bg-white dark:bg-slate-900 p-8 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center group hover:border-primary/50 transition-colors col-span-1">
+                <span class="text-sm font-bold uppercase tracking-widest text-slate-400 mb-2">Now Serving</span>
+                <p class="counter-val text-5xl font-black mb-2 text-slate-700 dark:text-slate-200" id="now-serving-display">—</p>
+                <p class="text-sm font-semibold text-slate-500 dark:text-slate-400" id="now-serving-service">No active service</p>
+                <div class="mt-4 w-12 h-1 bg-primary/20 rounded-full group-hover:w-24 transition-all"></div>
+            </div>
+
+            <!-- Waiting Time -->
+            <div class="bg-white dark:bg-slate-900 p-8 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center group hover:border-primary/50 transition-colors">
+                <span class="text-sm font-bold uppercase tracking-widest text-slate-400 mb-2">Wait Duration</span>
+                <p class="text-primary text-5xl font-black mb-2"><span id="wait-mins" class="counter-val">0</span> <span class="text-2xl font-bold">mins</span></p>
+                <p class="text-lg font-semibold text-slate-600 dark:text-slate-400">Estimated Waiting Time</p>
+                <div class="mt-4 w-12 h-1 bg-primary/20 rounded-full group-hover:w-24 transition-all"></div>
+            </div>
+
+            <!-- Queue Depth -->
+            <div class="bg-white dark:bg-slate-900 p-8 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center group hover:border-primary/50 transition-colors">
+                <span class="text-sm font-bold uppercase tracking-widest text-slate-400 mb-2">In Queue</span>
+                <p class="text-slate-700 dark:text-slate-200 text-5xl font-black mb-2"><span id="queue-depth" class="counter-val">0</span></p>
+                <p class="text-lg font-semibold text-slate-600 dark:text-slate-400">People Waiting</p>
+                <div class="mt-4 w-12 h-1 bg-primary/20 rounded-full group-hover:w-24 transition-all"></div>
+            </div>
+        </div>
+
+        <!-- Per-service breakdown -->
+        <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 px-5 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-primary">school</span>
+                    <span class="font-bold text-sm">Advising</span>
+                </div>
+                <span class="text-sm font-black text-primary"><span id="count-adv">0</span> waiting</span>
+            </div>
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 px-5 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-primary">assignment_ind</span>
+                    <span class="font-bold text-sm">Enrollment</span>
+                </div>
+                <span class="text-sm font-black text-primary"><span id="count-enr">0</span> waiting</span>
+            </div>
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 px-5 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-primary">payments</span>
+                    <span class="font-bold text-sm">Payment</span>
+                </div>
+                <span class="text-sm font-black text-primary"><span id="count-pay">0</span> waiting</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── BOOKING SECTION ──────────────────────────────────── -->
+    <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-lg overflow-hidden">
+        <div class="p-8 border-b border-slate-100 dark:border-slate-800">
+            <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">Book Queue / Appointment</h3>
+            <p class="text-slate-500 dark:text-slate-400">Select a service category to secure your slot or schedule a consultation.</p>
+        </div>
+        <div class="p-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <!-- Advising -->
+                <label class="relative cursor-pointer group">
+                    <input checked class="peer sr-only" name="service" type="radio" value="Advising"/>
+                    <div class="h-full p-6 rounded-xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 transition-all peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:ring-4 peer-checked:ring-primary/10">
+                        <div class="w-12 h-12 bg-white dark:bg-slate-700 rounded-lg shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                            <span class="material-symbols-outlined text-primary text-2xl">school</span>
+                        </div>
+                        <h4 class="text-lg font-bold mb-1">Advising</h4>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Academic consulting, course planning, and career guidance.</p>
+                    </div>
+                </label>
+
+                <!-- Enrollment -->
+                <label class="relative cursor-pointer group">
+                    <input class="peer sr-only" name="service" type="radio" value="Enrollment"/>
+                    <div class="h-full p-6 rounded-xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 transition-all peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:ring-4 peer-checked:ring-primary/10">
+                        <div class="w-12 h-12 bg-white dark:bg-slate-700 rounded-lg shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                            <span class="material-symbols-outlined text-primary text-2xl">assignment_ind</span>
+                        </div>
+                        <h4 class="text-lg font-bold mb-1">Enrollment</h4>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">New student registration, subject adding, and credit transfers.</p>
+                    </div>
+                </label>
+
+                <!-- Payment -->
+                <label class="relative cursor-pointer group">
+                    <input class="peer sr-only" name="service" type="radio" value="Payment"/>
+                    <div class="h-full p-6 rounded-xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 transition-all peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:ring-4 peer-checked:ring-primary/10">
+                        <div class="w-12 h-12 bg-white dark:bg-slate-700 rounded-lg shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                            <span class="material-symbols-outlined text-primary text-2xl">payments</span>
+                        </div>
+                        <h4 class="text-lg font-bold mb-1">Payment</h4>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Tuition fees, miscellaneous charges, and scholarship processing.</p>
+                    </div>
+                </label>
+            </div>
+
+            <div class="flex flex-col items-center gap-6">
+                <button onclick="openBookingModal()" class="w-full md:w-auto min-w-[300px] py-4 bg-primary text-white text-lg font-extrabold rounded-xl shadow-lg shadow-primary/30 hover:bg-primary/90 hover:-translate-y-1 transition-all active:translate-y-0">
+                    Book Queue Number
+                </button>
+                <p class="text-xs text-slate-400 dark:text-slate-500 text-center flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm">info</span>
+                    By booking, you agree to receive SMS/Email notifications regarding your status.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── INFO CARDS ───────────────────────────────────────── -->
+    <section class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="relative overflow-hidden rounded-2xl aspect-[16/7] group">
+            <div class="absolute inset-0 bg-primary/10 z-0"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10"></div>
+            <img class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBSQ6ftQfs0uAwhAleXL4cC_GQ3woVn5weNzfdYMmeLauqcyyFO7_a36y-A4ln-ET8NKMqgPwr8d0M8zRJYHh7MjXpwjybc58Sa4FPbl3xbBLFml3Lb4Spnv3y6PNE1gGjh4_LrqL32gVdpn39Q6bzp-MV6kyUxnSWAuLgd4AXlX0XyOXmk2Hb5DZZJ6Ov_3Pgdnl_jzIltFr3M30Mz-IMZKiwzq_f87adCi3zlIHayES9DMsO2BRDPOuYdZZEWgAMKQCUlu3kwS2g" alt="University building"/>
+            <div class="absolute bottom-6 left-6 z-20">
+                <h5 class="text-white text-xl font-bold">New Student Guide</h5>
+                <p class="text-white/80 text-sm">Read the 2026 Enrollment Handbook</p>
+            </div>
+        </div>
+
+        <div class="relative overflow-hidden rounded-2xl aspect-[16/7] group">
+            <div class="absolute inset-0 bg-primary/10 z-0"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10"></div>
+            <img class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3_gCAt-TJUA0bYrjvsuR77JuBdfki0tuj8w3M1dJILyw2NPnVordvGqfsBr7ZCpJvAeOm6QIPAq4mcgS1BMsZ_8MWyteGu7jlEkaVEBTVXkoRQdC4Vx7T6uj6RUTyKNjGshSEj8ElT7IP79soI-H_EVfVDvoWbS-DwD7cvhip9dB_09g2oImwg1Yaa_uztLtWGLfe9x71qKAhNDgwAzBN0AOg22BrCEzHAzu7MbT6_xSk6Ts5nDnqTpOO1nrKVJZCeQeYqPNTnoA" alt="Student studying"/>
+            <div class="absolute bottom-6 left-6 z-20">
+                <h5 class="text-white text-xl font-bold">Financial Assistance</h5>
+                <p class="text-white/80 text-sm">Explore payment plans and scholarships</p>
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- ─── FOOTER ─────────────────────────────────────────────── -->
+<footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-12">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-8 mb-8">
+            <div class="flex items-center gap-3">
+                <div class="bg-primary/10 text-primary p-1 rounded flex items-center justify-center">
+                    <span class="material-symbols-outlined text-xl">confirmation_number</span>
+                </div>
+                <span class="text-lg font-bold text-slate-900 dark:text-white">SmartQueue PH</span>
+            </div>
+            <div class="flex gap-8">
+                <a class="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors" href="#">Privacy Policy</a>
+                <a class="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors" href="#">Terms of Service</a>
+                <a class="text-sm text-slate-500 dark:text-slate-400 hover:text-primary transition-colors" href="#">Contact Us</a>
+            </div>
+            <div class="flex gap-4">
+                <a class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-primary hover:text-white transition-all" href="#">
+                    <span class="material-symbols-outlined text-lg">public</span>
+                </a>
+                <a class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-primary hover:text-white transition-all" href="#">
+                    <span class="material-symbols-outlined text-lg">mail</span>
+                </a>
+            </div>
+        </div>
+        <div class="pt-8 border-t border-slate-100 dark:border-slate-800 text-center">
+            <p class="text-sm text-slate-400 dark:text-slate-500 font-medium">SmartQueue PH © 2026. Streamlining your campus experience with efficiency.</p>
+        </div>
+    </div>
+</footer>
+
+<!-- ─── JAVASCRIPT ─────────────────────────────────────────── -->
+<script>
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+const MINS_PER_PERSON = 5; // estimated service time per person
+
+const state = {
+    queues: { Advising: [], Enrollment: [], Payment: [] },
+    nowServing: { Advising: 0, Enrollment: 0, Payment: 0 },
+    counters: { Advising: 0, Enrollment: 0, Payment: 0 },
+    myTicket: null,     // { number, service, name, contact }
+    progressInterval: null,
+};
+
+// ══════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════
+function showToast(msg, icon = 'check_circle') {
+    const t = document.getElementById('toast');
+    document.getElementById('toast-msg').textContent = msg;
+    document.getElementById('toast-icon').textContent = icon;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function flipCounter(el, newVal) {
+    el.classList.add('flip');
+    setTimeout(() => {
+        el.textContent = newVal;
+        el.classList.remove('flip');
+    }, 300);
+}
+
+function getSelectedService() {
+    const checked = document.querySelector('input[name="service"]:checked');
+    return checked ? checked.value : 'Advising';
+}
+
+function generateTicketNumber(service) {
+    const prefix = { Advising: 'A', Enrollment: 'E', Payment: 'P' }[service];
+    state.counters[service]++;
+    return prefix + String(state.counters[service]).padStart(3, '0');
+}
+
+function getQueueDepth(service) {
+    return state.queues[service].filter(t => !t.served).length;
+}
+
+function getTotalDepth() {
+    return Object.keys(state.queues).reduce((sum, s) => sum + getQueueDepth(s), 0);
+}
+
+function getWaitTime() {
+    const total = getTotalDepth();
+    return Math.max(0, total * MINS_PER_PERSON);
+}
+
+function getMyPosition() {
+    if (!state.myTicket) return null;
+    const { service, number } = state.myTicket;
+    const q = state.queues[service];
+    const idx = q.findIndex(t => t.number === number && !t.served);
+    return idx === -1 ? 0 : idx + 1;
+}
+
+// ══════════════════════════════════════════════════
+// UI UPDATES
+// ══════════════════════════════════════════════════
+function updateDashboard() {
+    // Now serving — find most recently called ticket overall
+    let latestServed = null;
+    let latestService = null;
+    Object.keys(state.queues).forEach(s => {
+        const served = state.queues[s].filter(t => t.served);
+        if (served.length) {
+            const last = served[served.length - 1];
+            if (!latestServed || last.calledAt > latestServed.calledAt) {
+                latestServed = last;
+                latestService = s;
+            }
+        }
+    });
+
+    const nowEl = document.getElementById('now-serving-display');
+    const svcEl = document.getElementById('now-serving-service');
+    const newServing = latestServed ? latestServed.number : '—';
+    if (nowEl.textContent !== newServing) {
+        flipCounter(nowEl, newServing);
+        svcEl.textContent = latestService || 'No active service';
+    }
+
+    // Wait time
+    const wm = getWaitTime();
+    const waitEl = document.getElementById('wait-mins');
+    if (waitEl.textContent !== String(wm)) flipCounter(waitEl, wm);
+
+    // Queue depth
+    const td = getTotalDepth();
+    const depthEl = document.getElementById('queue-depth');
+    if (depthEl.textContent !== String(td)) flipCounter(depthEl, td);
+
+    // Per-service counts
+    document.getElementById('count-adv').textContent = getQueueDepth('Advising');
+    document.getElementById('count-enr').textContent = getQueueDepth('Enrollment');
+    document.getElementById('count-pay').textContent = getQueueDepth('Payment');
+
+    // Nav ticket badge
+    const navBtn = document.getElementById('nav-ticket-btn');
+    if (state.myTicket) {
+        navBtn.classList.remove('hidden');
+        navBtn.classList.add('flex');
+        document.getElementById('nav-ticket-label').textContent = state.myTicket.number;
+    } else {
+        navBtn.classList.add('hidden');
+        navBtn.classList.remove('flex');
+    }
+}
+
+function updateTicketProgress() {
+    if (!state.myTicket) return;
+    const pos = getMyPosition();
+    const depth = getQueueDepth(state.myTicket.service);
+    const total = state.counters[state.myTicket.service];
+
+    if (pos === 0) {
+        // Ticket served or cancelled
+        document.getElementById('progress-bar-inner').style.width = '100%';
+        document.getElementById('progress-label').textContent = '✓ Your turn! Please proceed to the counter.';
+        clearInterval(state.progressInterval);
+        return;
+    }
+
+    const pct = total > 0 ? Math.round(((total - pos) / total) * 100) : 0;
+    document.getElementById('progress-bar-inner').style.width = pct + '%';
+    document.getElementById('progress-label').textContent =
+        `You are #${pos} in line — ~${pos * MINS_PER_PERSON} mins remaining`;
+    document.getElementById('ticket-wait').textContent = `~${pos * MINS_PER_PERSON} mins`;
+}
+
+// ══════════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════════
+function openBookingModal() {
+    const service = getSelectedService();
+    document.getElementById('modal-service-name').textContent = service;
+    document.getElementById('step-confirm').classList.remove('hidden');
+    document.getElementById('step-ticket').classList.add('hidden');
+    document.getElementById('input-name').value = '';
+    document.getElementById('input-contact').value = '';
+    document.getElementById('input-concern').value = '';
+    document.getElementById('modal-overlay').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('active');
+    clearInterval(state.progressInterval);
+}
+
+function viewMyTicket() {
+    if (!state.myTicket) return;
+    document.getElementById('step-confirm').classList.add('hidden');
+    document.getElementById('step-ticket').classList.remove('hidden');
+    document.getElementById('ticket-number-display').textContent = state.myTicket.number;
+    document.getElementById('ticket-service').textContent = state.myTicket.service;
+    document.getElementById('ticket-name').textContent = state.myTicket.name || 'Guest';
+    document.getElementById('modal-overlay').classList.add('active');
+    startProgressTracking();
+}
+
+// ══════════════════════════════════════════════════
+// BOOKING
+// ══════════════════════════════════════════════════
+function generateTicket() {
+    const name = document.getElementById('input-name').value.trim();
+    const contact = document.getElementById('input-contact').value.trim();
+    const service = document.getElementById('modal-service-name').textContent;
+
+    if (!name) {
+        document.getElementById('input-name').focus();
+        showToast('Please enter your name.', 'warning');
+        return;
+    }
+
+    const ticketNum = generateTicketNumber(service);
+    const ticket = { number: ticketNum, service, name, contact, served: false, calledAt: null };
+    state.queues[service].push(ticket);
+    state.myTicket = ticket;
+
+    // Show ticket step
+    document.getElementById('step-confirm').classList.add('hidden');
+    document.getElementById('step-ticket').classList.remove('hidden');
+    document.getElementById('ticket-number-display').textContent = ticketNum;
+    document.getElementById('ticket-service').textContent = service;
+    document.getElementById('ticket-name').textContent = name || 'Guest';
+    document.getElementById('ticket-wait').textContent = `~${getMyPosition() * MINS_PER_PERSON} mins`;
+    document.getElementById('progress-bar-inner').style.width = '0%';
+
+    updateDashboard();
+    startProgressTracking();
+
+    // Mock notification
+    if (contact) {
+        setTimeout(() => showToast(`Notification sent to ${contact}`, 'notifications'), 1200);
+    }
+
+    showToast(`Ticket ${ticketNum} confirmed!`);
+}
+
+function cancelTicket() {
+    if (!state.myTicket) return;
+    const { service, number } = state.myTicket;
+    const idx = state.queues[service].findIndex(t => t.number === number);
+    if (idx !== -1) state.queues[service].splice(idx, 1);
+    state.myTicket = null;
+    clearInterval(state.progressInterval);
+    closeModal();
+    updateDashboard();
+    showToast('Ticket cancelled.', 'cancel');
+}
+
+function copyTicket() {
+    if (!state.myTicket) return;
+    const text = `SmartQueue PH Ticket\nNumber: ${state.myTicket.number}\nService: ${state.myTicket.service}\nName: ${state.myTicket.name}`;
+    navigator.clipboard.writeText(text).then(() => showToast('Ticket details copied!'));
+}
+
+// ══════════════════════════════════════════════════
+// PROGRESS TRACKING
+// ══════════════════════════════════════════════════
+function startProgressTracking() {
+    clearInterval(state.progressInterval);
+    updateTicketProgress();
+    state.progressInterval = setInterval(updateTicketProgress, 5000);
+}
+
+// ══════════════════════════════════════════════════
+// SIMULATED LIVE QUEUE ADVANCEMENT
+// Calls the next ticket every ~12 seconds to demo live updates
+// ══════════════════════════════════════════════════
+function advanceQueue() {
+    // Pick a service that has unserved tickets
+    const active = Object.keys(state.queues).filter(s => getQueueDepth(s) > 0);
+    if (!active.length) return;
+
+    const service = active[Math.floor(Math.random() * active.length)];
+    const next = state.queues[service].find(t => !t.served);
+    if (!next) return;
+
+    next.served = true;
+    next.calledAt = Date.now();
+    state.nowServing[service] = next.number;
+
+    // If it's the user's ticket, alert them
+    if (state.myTicket && next.number === state.myTicket.number) {
+        showToast(`🔔 ${next.number} — It's your turn! Please proceed.`, 'notifications_active');
+        document.getElementById('progress-label').textContent = '✓ Your turn! Please proceed to the counter.';
+        document.getElementById('progress-bar-inner').style.width = '100%';
+        state.myTicket = null;
+    }
+
+    updateDashboard();
+    updateTicketProgress();
+}
+
+// Advance queue automatically every 12 seconds (demo)
+setInterval(advanceQueue, 12000);
+
+// ══════════════════════════════════════════════════
+// KEYBOARD: close modal on Escape
+// ══════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+});
+
+// Close modal when clicking overlay background
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+// Initial render
+updateDashboard();
+</script>
+</body>
+</html>
