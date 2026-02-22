@@ -99,7 +99,7 @@
             </div>
             <div class="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6">
                 <p class="text-xs font-bold uppercase tracking-widest text-primary mb-1">Service Selected</p>
-                <p class="text-xl font-extrabold" id="modal-service-name">Advising</p>
+                <p class="text-xl font-extrabold" id="modal-service-name">Admissions</p>
             </div>
             <div class="space-y-3 mb-6">
                 <div>
@@ -377,7 +377,7 @@ function dbRead() {
         const raw = localStorage.getItem(DB_KEY);
         if (raw) return JSON.parse(raw);
     } catch(e) {}
-    return { tickets: [], counters: { Advising:0, Enrollment:0, Payment:0 }, nowServing: null };
+    return { tickets: [], counters: { Admissions:0, Registrar:0, Treasury:0 }, nowServing: null };
 }
 
 function dbWrite(data) {
@@ -385,7 +385,7 @@ function dbWrite(data) {
 }
 
 function dbInit() {
-    if (!localStorage.getItem(DB_KEY)) dbWrite({ tickets: [], counters: { Advising:0, Enrollment:0, Payment:0 }, nowServing: null });
+    if (!localStorage.getItem(DB_KEY)) dbWrite({ tickets: [], counters: { Admissions:0, Registrar:0, Treasury:0 }, nowServing: null });
 }
 
 // ── local session state (not shared) ──────────────────────────
@@ -412,7 +412,7 @@ function flipCounter(el, newVal) {
 
 function getSelectedService() {
     const checked = document.querySelector('input[name="service"]:checked');
-    return checked ? checked.value : 'Advising';
+    return checked ? checked.value : 'Admissions';
 }
 
 function getWaiting(db, service) {
@@ -451,9 +451,9 @@ function updateDashboard() {
     flipCounter(document.getElementById('queue-depth'), waiting);
 
     // Per-service counts
-    document.getElementById('count-adv').textContent = getWaiting(db, 'Advising');
-    document.getElementById('count-enr').textContent = getWaiting(db, 'Enrollment');
-    document.getElementById('count-pay').textContent = getWaiting(db, 'Payment');
+    document.getElementById('count-adv').textContent = getWaiting(db, 'Admissions');
+    document.getElementById('count-enr').textContent = getWaiting(db, 'Registrar');
+    document.getElementById('count-pay').textContent = getWaiting(db, 'Treasury');
 
     // Nav ticket badge
     const navBtn = document.getElementById('nav-ticket-btn');
