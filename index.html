@@ -411,11 +411,10 @@ function flipCounter(el, newVal) {
 }
 
 function getSelectedService() {
-    function getSelectedService() {
     const checked = document.querySelector('input[name="service"]:checked');
     return checked ? checked.value : '';
 }
-}
+
 
 function getWaiting(db, service) {
     return db.tickets.filter(t => t.service === service && t.status === 'waiting').length;
