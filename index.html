@@ -452,9 +452,9 @@ function updateDashboard() {
     flipCounter(document.getElementById('queue-depth'), waiting);
 
     // Per-service counts
-    document.getElementById('count-adv').textContent = getWaiting(db, 'Advising');
-    document.getElementById('count-enr').textContent = getWaiting(db, 'Enrollment');
-    document.getElementById('count-pay').textContent = getWaiting(db, 'Payment');
+    document.getElementById('count-adv').textContent = getWaiting(db, 'Admissions');
+    document.getElementById('count-enr').textContent = getWaiting(db, 'Registrar');
+    document.getElementById('count-pay').textContent = getWaiting(db, 'Treasury');
 
     // Nav ticket badge
     const navBtn = document.getElementById('nav-ticket-btn');
