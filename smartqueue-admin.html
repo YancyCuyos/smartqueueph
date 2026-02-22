@@ -225,17 +225,17 @@ input:checked ~ .toggle-track .toggle-thumb { transform:translateX(20px); }
     <button onclick="showPage('queue');filterService('Advising')"
       class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
       <span class="material-symbols-outlined text-xl flex-shrink-0" style="color:#137fec">school</span>
-      <span class="sidebar-label">Advising</span>
+      <span class="sidebar-label">Admissions</span>
     </button>
     <button onclick="showPage('queue');filterService('Enrollment')"
       class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
       <span class="material-symbols-outlined text-xl flex-shrink-0" style="color:#22c55e">assignment_ind</span>
-      <span class="sidebar-label">Enrollment</span>
+      <span class="sidebar-label">Registrar</span>
     </button>
     <button onclick="showPage('queue');filterService('Payment')"
       class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
       <span class="material-symbols-outlined text-xl flex-shrink-0" style="color:#f59e0b">payments</span>
-      <span class="sidebar-label">Payment</span>
+      <span class="sidebar-label">Treasury</span>
     </button>
   </nav>
 
@@ -349,13 +349,13 @@ input:checked ~ .toggle-track .toggle-thumb { transform:translateX(20px); }
           </button>
           <div class="w-full space-y-2 mt-1">
             <button onclick="callNext('Advising')" class="w-full py-2 text-xs border border-slate-700 text-slate-400 font-bold rounded-xl hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-center gap-2">
-              <span class="material-symbols-outlined text-sm" style="color:#137fec">school</span> Next Advising
+              <span class="material-symbols-outlined text-sm" style="color:#137fec">school</span> Next Admissions
             </button>
-            <button onclick="callNext('Enrollment')" class="w-full py-2 text-xs border border-slate-700 text-slate-400 font-bold rounded-xl hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-center gap-2">
-              <span class="material-symbols-outlined text-sm" style="color:#22c55e">assignment_ind</span> Next Enrollment
+            <button onclick="callNext('Registrar')" class="w-full py-2 text-xs border border-slate-700 text-slate-400 font-bold rounded-xl hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-sm" style="color:#22c55e">assignment_ind</span> Next Registrar
             </button>
-            <button onclick="callNext('Payment')" class="w-full py-2 text-xs border border-slate-700 text-slate-400 font-bold rounded-xl hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-center gap-2">
-              <span class="material-symbols-outlined text-sm" style="color:#f59e0b">payments</span> Next Payment
+            <button onclick="callNext('Treasury')" class="w-full py-2 text-xs border border-slate-700 text-slate-400 font-bold rounded-xl hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-sm" style="color:#f59e0b">payments</span> Next Treasury
             </button>
           </div>
         </div>
@@ -394,9 +394,9 @@ input:checked ~ .toggle-track .toggle-thumb { transform:translateX(20px); }
       <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div class="flex gap-2 flex-wrap">
           <button onclick="filterService('All')" id="tab-All" class="tab-btn active px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-white transition-all">All</button>
-          <button onclick="filterService('Advising')" id="tab-Advising" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white transition-all">Advising</button>
-          <button onclick="filterService('Enrollment')" id="tab-Enrollment" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white transition-all">Enrollment</button>
-          <button onclick="filterService('Payment')" id="tab-Payment" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white transition-all">Payment</button>
+          <button onclick="filterService('Admissions')" id="tab-Admissions" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white transition-all">Admissions</button>
+          <button onclick="filterService('Registrar')" id="tab-Registrar" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white transition-all">Registrar</button>
+          <button onclick="filterService('Treasury')" id="tab-Treasury" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold border border-slate-700 text-slate-400 hover:text-white transition-all">Treasury</button>
         </div>
         <div class="flex gap-3">
           <div class="relative">
@@ -542,9 +542,9 @@ input:checked ~ .toggle-track .toggle-thumb { transform:translateX(20px); }
 // SHARED localStorage LAYER  (same key as student page)
 // ══════════════════════════════════════════════════════════
 const DB_KEY  = 'smartqueue_db';
-const SERVICES = ['Advising','Enrollment','Payment'];
-const PREFIX   = {Advising:'A', Enrollment:'E', Payment:'P'};
-const SVC_CLR  = {Advising:'#137fec', Enrollment:'#22c55e', Payment:'#f59e0b'};
+const SERVICES = ['Admissions','Registrar','Treasury'];
+const PREFIX   = {Admissions:'A', Registrar:'R', Treasury:'T'};
+const SVC_CLR  = {Admissions:'#137fec', Registrar:'#22c55e', Treasury:'#f59e0b'};
 
 // UI-only state (not persisted)
 let UI = { filter:'All', autoOn:true, autoTimer:null, mpp:5 };
@@ -554,7 +554,7 @@ function dbRead() {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) return JSON.parse(raw);
   } catch(e) {}
-  return { tickets:[], counters:{Advising:0,Enrollment:0,Payment:0}, nowServing:null };
+  return { tickets:[], counters:{Admissions:0,Registrar:0,Treasury:0}, nowServing:null };
 }
 
 function dbWrite(data) {
@@ -564,7 +564,7 @@ function dbWrite(data) {
 function dbInit() {
   if (!localStorage.getItem(DB_KEY)) {
     // Seed demo data on first load
-    const db = { tickets:[], counters:{Advising:0,Enrollment:0,Payment:0}, nowServing:null };
+    const db = { tickets:[], counters:{Admissions:0,Registrar:0,Treasury:0}, nowServing:null };
     const NAMES = ['Juan Dela Cruz','Maria Santos','Carlo Reyes','Ana Gomez',
                    'Lito Bautista','Rose Tan','Mark Lim','Jenny Abad'];
     const CONCERNS = ['Course planning','Subject adding','Tuition payment',
@@ -765,7 +765,7 @@ function callNext(svc) {
 // ══════════════════════════════════════════════════════════
 function filterService(svc) {
   UI.filter = svc;
-  ['All','Advising','Enrollment','Payment'].forEach(s => {
+  ['All','Admissions','Registrar','Treasury'].forEach(s => {
     const el = document.getElementById('tab-'+s);
     if (el) el.classList.toggle('active', s === svc);
   });
@@ -1002,7 +1002,7 @@ function toggleAuto() {
 // BULK ACTIONS
 // ══════════════════════════════════════════════════════════
 function resetQueues() {
-  dbWrite({ tickets:[], counters:{Advising:0,Enrollment:0,Payment:0}, nowServing:null });
+  dbWrite({ tickets:[], counters:{Admissions:0,Registrar:0,Treasury:0}, nowServing:null });
   toast('All queues cleared.', 'delete_sweep');
   renderAll();
 }
