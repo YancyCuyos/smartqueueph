@@ -385,7 +385,7 @@ function dbWrite(data) {
 }
 
 function dbInit() {
-    if (!localStorage.getItem(DB_KEY)) dbWrite({ tickets: [], counters: { Advising:0, Enrollment:0, Payment:0 }, nowServing: null });
+    if (!localStorage.getItem(DB_KEY)) dbWrite({ tickets: [], counters: { Admissions:0, Registrar:0, Treasury:0 }, nowServing: null });
 }
 
 // ── local session state (not shared) ──────────────────────────
